@@ -1,4 +1,3 @@
-import React from 'react';
 import { VoiceForm } from './components/VoiceForm';
 
 export default function App() {
