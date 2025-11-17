@@ -1,1 +1,7 @@
-body{font-family:Inter,system-ui;padding:20px;background:#f7f7fb} .container{max-width:720px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.06)} button.mic{padding:10px 14px;border-radius:8px;border:none;background:#111;color:#fff} .field{margin-bottom:12px} label{display:block;font-weight:600;margin-bottom:6px} input,textarea{width:100%;padding:10px;border:1px solid #ddd;border-radius:6px}
+body{font-family:Inter,system-ui,Arial;padding:20px;background:#f5f7fb}
+.container{max-width:900px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
+button.mic{padding:10px 14px;border-radius:8px;border:none;background:#111;color:#fff}
+.field{margin-bottom:12px}
+label{display:block;font-weight:600;margin-bottom:6px}
+input, textarea, select{width:100%;padding:10px;border:1px solid #ddd;border-radius:6px}
+.small{font-size:13px;color:#666}
