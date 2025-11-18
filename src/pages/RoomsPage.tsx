@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { deserializeDbFromBase64 } from '../lib/googleSheetToSqlite'
+import { deserializeDbFromBase64 } from '../lib/db'
 
 const STORAGE_KEY = 'ifb_saved_bases'
 
@@ -20,10 +20,11 @@ export default function RoomsPage(){
     const db = await deserializeDbFromBase64(b.b64)
     // try to get distinct room/local/Sala column
     try {
-      const info = db.exec("PRAGMA table_info('itens');");
+      const info = db.exec("PRAGMA table_info('item');");
       const cols = (info[0]?.values ?? []).map((v:any)=>v[1].toString())
-      const candidates = cols.map((c:any)=>c.toLowerCase()).find((c:any)=>['sala','local','SALA'].includes(c)) || cols[0]
-      const stmt = db.prepare(`SELECT DISTINCT "[${candidates}]" as room FROM itens;`)
+      const candidates = ['sala','local','room','Sala','Local','Room']
+      const roomCol = cols.find((c:any)=>candidates.includes(c)) || cols[0]
+      const stmt = db.prepare(`SELECT DISTINCT "${roomCol}" as room FROM item;`)
       const arr:string[] = []
       while(stmt.step()){
         const o = stmt.getAsObject()
@@ -32,6 +33,8 @@ export default function RoomsPage(){
       stmt.free()
       setRooms(arr.filter(Boolean))
       setSelectedBaseId(b.id)
+      // Salvar a base selecionada na sessão para uso posterior
+      sessionStorage.setItem('selected_base_b64', b.b64)
     } catch (err:any){
       console.error(err)
       alert('Erro ao listar salas: ' + (err.message||err))

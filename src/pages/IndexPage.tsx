@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { csvFileToDbBytes } from '../lib/csvToSqlite'
 
 type SavedBase = { id: string; name: string; b64: string }
 const STORAGE_KEY = 'ifb_saved_bases'
@@ -21,28 +22,103 @@ export default function IndexPage(){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(arr))
     setBases(arr)
   }
+  
+  const uint8ToBase64 = (bytes: Uint8Array) => {
+    let binary = ''
+    const chunkSize = 0x8000
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize)
+      binary += String.fromCharCode.apply(null, Array.from(chunk) as any)
+    }
+    return btoa(binary)
+  }
+
+  const importCsvToDb = async (file: File): Promise<string> => {
+    const bytes = await csvFileToDbBytes(file)
+    const b64 = uint8ToBase64(bytes)
+    return b64
+  }
 
   const handleImportFile = async () => {
     if (!file) return alert('Selecione um arquivo CSV primeiro')
     setLoading(true)
     try {
-      const text = await file.text()
       const name = (sheetName.trim() || file.name).replace(/[^a-z0-9-_\.]/gi,'_') + '.db'
-      // send CSV text to server to create and save .db
-      const res = await fetch('http://localhost:3001/import-csv', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ csvText: text, name })
-      })
-      if (!res.ok) throw new Error('server import failed: ' + res.statusText)
-      const body = await res.json()
+      const b64 = await importCsvToDb(file)
       const id = Date.now().toString()
-      const next = [{ id, name, b64: '' }, ...bases]
+      
+      // Tentar salvar no servidor (se disponível)
+      const serverUrl = process.env.NODE_ENV === 'production' 
+        ? window.location.origin 
+        : 'http://localhost:3001'
+      
+      try {
+        const saveRes = await fetch(`${serverUrl}/save-db`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, b64 })
+        })
+        if (saveRes.ok) {
+          const result = await saveRes.json()
+          console.log('Arquivo salvo em:', result.path)
+        }
+      } catch (serverErr: any) {
+        console.warn('Servidor não disponível - arquivo será salvo localmente apenas')
+      }
+      
+      const next = [{ id, name, b64 }, ...bases]
       persistBases(next)
       setFile(null)
       setSheetName('')
-      alert('Base importada no servidor: ' + body.path)
+      alert('Base importada com sucesso!')
     } catch (err:any){
       alert('Erro ao importar arquivo: ' + (err.message || err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleExportDb = async (b: SavedBase) => {
+    setLoading(true)
+    try {
+      const binary = atob(b.b64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i)
+      }
+      
+      // Tentar usar File System Access API (Chrome, Edge, Opera)
+      if ((window as any).showSaveFilePicker) {
+        try {
+          const fileHandle = await (window as any).showSaveFilePicker({
+            suggestedName: b.name,
+            types: [{ description: 'Database Files', accept: { 'application/octet-stream': ['.db'] } }]
+          })
+          const writable = await fileHandle.createWritable()
+          await writable.write(bytes)
+          await writable.close()
+          alert('Arquivo salvo com sucesso: ' + b.name)
+          return
+        } catch (err: any) {
+          if (err.name !== 'AbortError') {
+            console.warn('Erro ao usar File System Access API:', err)
+          }
+        }
+      }
+      
+      // Fallback: Download via blob
+      const blob = new Blob([bytes], { type: 'application/octet-stream' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = b.name
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      alert('Arquivo baixado: ' + b.name)
+    } catch (err: any) {
+      alert('Erro ao exportar arquivo: ' + (err.message || err))
     } finally {
       setLoading(false)
     }
@@ -84,6 +160,7 @@ export default function IndexPage(){
             <strong style={{display:'block',maxWidth:700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{b.name}</strong>
             <div style={{display:'flex',gap:8,marginTop:4}}>
               <button onClick={()=>handleSelect(b)}>Selecionar</button>
+              <button onClick={()=>handleExportDb(b)}>Baixar .db</button>
               <button onClick={()=>handleDelete(b.id)}>Remover</button>
             </div>
           </li>
