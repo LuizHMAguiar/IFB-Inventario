@@ -5,3 +5,10 @@ button.mic{padding:10px 14px;border-radius:8px;border:none;background:#111;color
 label{display:block;font-weight:600;margin-bottom:6px}
 input, textarea, select{width:100%;padding:10px;border:1px solid #ddd;border-radius:6px}
 .small{font-size:13px;color:#666}
+/* Auto-filled fields (filled by voice or import) */
+.auto-filled{ 
+	background: #e6ffea; /* very light green */
+	border-color: #47b165; /* green border */
+	box-shadow: 0 0 0 3px #e6ffea; 
+	transition: background 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}

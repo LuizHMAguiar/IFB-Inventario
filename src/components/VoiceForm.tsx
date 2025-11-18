@@ -1,18 +1,33 @@
 import { useEffect, useState } from 'react'
 import { useSpeechToText } from '../hooks/useSpeechToText'
 import { parseSpeechText } from '../lib/parser'
-import { importGoogleSheetToSQLite, type DB } from '../lib/googleSheetToSqlite'
+import type { DB } from '../lib/googleSheetToSqlite'
 import { findItemByNumero } from '../lib/db'
 import { fillFormWithData, type FormData } from '../lib/fillForm'
 
-export default function VoiceForm(){
+type Props = { db?: DB | null; initialRoom?: string }
+
+export default function VoiceForm({ db, initialRoom }: Props){
   const { text, listening, startListening, stopListening, reset } = useSpeechToText()
-  const [db, setDb] = useState<DB | null>(null)
   const [lastTranscript, setLastTranscript] = useState('')
   const [form, setForm] = useState<FormData>({
     numero: '', descricao:'', sala:'', estado:'', status:'', etiquetado:'', observacao:'', recomendacao:''
   })
+  const [autoFilled, setAutoFilled] = useState<Record<keyof FormData, boolean>>({
+    numero: false,
+    descricao: false,
+    sala: false,
+    estado: false,
+    status: false,
+    etiquetado: false,
+    observacao: false,
+    recomendacao: false,
+  })
   const [loading, setLoading] = useState(false)
+
+  useEffect(()=>{
+    if (initialRoom) setForm(f=>({...f, sala: initialRoom}))
+  },[initialRoom])
 
   useEffect(() => {
     async function handle(){
@@ -25,6 +40,18 @@ export default function VoiceForm(){
         const item = db && parsed.numero ? findItemByNumero(db, parsed.numero) : null
         const filled = fillFormWithData(item, parsed)
         setForm(filled)
+        // compute which fields were auto-filled (from parsed or from matched item)
+        const flags: Record<keyof FormData, boolean> = {
+          numero: Boolean((parsed.numero ?? '') || (item && (item.numero ?? item.id ?? item.etiqueta ?? ''))),
+          descricao: Boolean((parsed.descricao ?? '') || (item && (item.descricao ?? item.descricao_item ?? item.Descricao ?? ''))),
+          sala: Boolean((parsed.sala ?? '') || (item && (item.sala ?? item.local ?? item.Sala ?? ''))),
+          estado: Boolean(parsed.estado ?? ''),
+          status: Boolean(parsed.status ?? ''),
+          etiquetado: Boolean(parsed.etiquetado ?? ''),
+          observacao: Boolean((parsed.observacao ?? '') || (item && (item.observacao ?? ''))),
+          recomendacao: Boolean(parsed.recomendacao ?? ''),
+        }
+        setAutoFilled(flags)
       } catch (err:any){
         console.error(err)
         alert('Erro ao processar a frase: ' + (err.message || err))
@@ -35,32 +62,11 @@ export default function VoiceForm(){
     handle()
   }, [text, db])
 
-  const handleImport = async () => {
-    const url = (document.getElementById('sheetUrl') as HTMLInputElement).value.trim()
-    if (!url) return alert('Cole o link da planilha (formato public CSV)')
-    setLoading(true)
-    try {
-      const dbInstance = await importGoogleSheetToSQLite(url)
-      setDb(dbInstance)
-      alert('Planilha importada para banco local.')
-    } catch (err:any){
-      alert('Erro ao importar: ' + (err.message || err))
-    } finally {
-      setLoading(false)
-    }
-  }
+  // Import handled by parent App; VoiceForm only uses `db` prop.
 
   return (
     <div>
-      <div style={{marginBottom:12}}>
-        <label>Link público da Google Sheets (use o link de export CSV)</label>
-        <input id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/ID/export?format=csv" />
-        <div style={{marginTop:8}}>
-          <button onClick={handleImport}>Importar planilha</button>
-        </div>
-      </div>
-
-      <div style={{display:'flex', gap:12, alignItems:'center', marginBottom:12}}>
+        <div style={{display:'flex', gap:12, alignItems:'center', marginBottom:12}}>
         <button
           className="mic"
           onMouseDown={() => { reset(); startListening(); }}
@@ -79,19 +85,19 @@ export default function VoiceForm(){
       <form onSubmit={(e)=>e.preventDefault()}>
         <div className="field">
           <label>Número</label>
-          <input value={form.numero} onChange={e=>setForm({...form, numero:e.target.value})} />
+          <input className={autoFilled.numero ? 'auto-filled' : ''} value={form.numero} onChange={e=>{ setForm({...form, numero:e.target.value}); setAutoFilled(prev=>({...prev, numero:false})); }} />
         </div>
         <div className="field">
           <label>Descrição</label>
-          <input value={form.descricao} onChange={e=>setForm({...form, descricao:e.target.value})} />
+          <input className={autoFilled.descricao ? 'auto-filled' : ''} value={form.descricao} onChange={e=>{ setForm({...form, descricao:e.target.value}); setAutoFilled(prev=>({...prev, descricao:false})); }} />
         </div>
         <div className="field">
           <label>Sala</label>
-          <input value={form.sala} onChange={e=>setForm({...form, sala:e.target.value})} />
+          <input className={autoFilled.sala ? 'auto-filled' : ''} value={form.sala} onChange={e=>{ setForm({...form, sala:e.target.value}); setAutoFilled(prev=>({...prev, sala:false})); }} />
         </div>
         <div className="field">
           <label>Estado de conservação</label>
-          <select value={form.estado} onChange={e=>setForm({...form, estado:e.target.value})}>
+          <select className={autoFilled.estado ? 'auto-filled' : ''} value={form.estado} onChange={e=>{ setForm({...form, estado:e.target.value}); setAutoFilled(prev=>({...prev, estado:false})); }}>
             <option value="">-- escolha --</option>
             <option>Bom</option>
             <option>Irreversível</option>
@@ -101,7 +107,7 @@ export default function VoiceForm(){
         </div>
         <div className="field">
           <label>Status</label>
-          <select value={form.status} onChange={e=>setForm({...form, status:e.target.value})}>
+          <select className={autoFilled.status ? 'auto-filled' : ''} value={form.status} onChange={e=>{ setForm({...form, status:e.target.value}); setAutoFilled(prev=>({...prev, status:false})); }}>
             <option value="">-- escolha --</option>
             <option>Localizado</option>
             <option>Migrado</option>
@@ -110,7 +116,7 @@ export default function VoiceForm(){
         </div>
         <div className="field">
           <label>Etiquetado</label>
-          <select value={form.etiquetado} onChange={e=>setForm({...form, etiquetado:e.target.value})}>
+          <select className={autoFilled.etiquetado ? 'auto-filled' : ''} value={form.etiquetado} onChange={e=>{ setForm({...form, etiquetado:e.target.value}); setAutoFilled(prev=>({...prev, etiquetado:false})); }}>
             <option value="">-- escolha --</option>
             <option>Sim</option>
             <option>Não</option>
@@ -118,11 +124,11 @@ export default function VoiceForm(){
         </div>
         <div className="field">
           <label>Observação</label>
-          <textarea rows={3} value={form.observacao} onChange={e=>setForm({...form, observacao:e.target.value})} />
+          <textarea className={autoFilled.observacao ? 'auto-filled' : ''} rows={3} value={form.observacao} onChange={e=>{ setForm({...form, observacao:e.target.value}); setAutoFilled(prev=>({...prev, observacao:false})); }} />
         </div>
         <div className="field">
           <label>Recomendação</label>
-          <textarea rows={3} value={form.recomendacao} onChange={e=>setForm({...form, recomendacao:e.target.value})} />
+          <textarea className={autoFilled.recomendacao ? 'auto-filled' : ''} rows={3} value={form.recomendacao} onChange={e=>{ setForm({...form, recomendacao:e.target.value}); setAutoFilled(prev=>({...prev, recomendacao:false})); }} />
         </div>
 
         <div style={{marginTop:12}}>
