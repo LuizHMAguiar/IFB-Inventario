@@ -1,9 +1,8 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useSpeechToText } from '../hooks/useSpeechToText'
 import { parseSpeechText } from '../lib/parser'
-import { findItemByNumero } from '../lib/db'
 import { fillFormWithData, type FormData } from '../lib/fillForm'
-import { csvFileToDbBytes } from '../lib/csvToSqlite'
+import { findItemByNumero } from '../services/findItem'
 
 type Props = { db?: any | null; initialRoom?: string }
 
@@ -13,21 +12,64 @@ export default function VoiceForm({ db, initialRoom }: Props){
   const [form, setForm] = useState<FormData>({
     numero: '', descricao:'', sala:'', estado:'', status:'', etiquetado:'', observacao:'', recomendacao:''
   })
+  
   const [autoFilled, setAutoFilled] = useState<Record<keyof FormData, boolean>>({
-    numero: false,
-    descricao: false,
-    sala: false,
-    estado: false,
-    status: false,
-    etiquetado: false,
-    observacao: false,
-    recomendacao: false,
+    numero: false, descricao: false, sala: false, estado: false, status: false, etiquetado: false, observacao: false, recomendacao: false,
   })
+  
   const [loading, setLoading] = useState(false)
 
   useEffect(()=>{
     if (initialRoom) setForm(f=>({...f, sala: initialRoom}))
   },[initialRoom])
+
+  const handleManualSearch = () => {
+    if (!form.numero) return alert('Digite um número para buscar.');
+    
+    // Se db for nulo, tente usar a chave padrão como fallback
+    const dbToUse = db || 'ifb_saved_bases'; 
+
+    setLoading(true);
+    try {
+      const item = findItemByNumero(dbToUse, form.numero);
+      
+      if (item) {
+        console.log("Item encontrado:", item); // Para debug
+
+        setForm(prev => ({
+          ...prev,
+          // Mapeamento das chaves MAIÚSCULAS do seu JSON para o form minúsculo
+          descricao: item.DESCRIÇÃO || item.Descricao || item.descricao || prev.descricao,
+          sala: item.SALA || item.Sala || item.sala || prev.sala,
+          observacao: item.OBSERVAÇÃO || item.Observacao || item.observacao || prev.observacao,
+          estado: item['ESTADO DE CONSERVAÇÃO'] || item.Estado || prev.estado,
+          status: item.STATUS || item.Status || prev.status,
+          etiquetado: item.ETIQUETADO || item.Etiquetado || prev.etiquetado,
+          recomendacao: item.RECOMENDAÇÃO || item.Recomendacao || prev.recomendacao
+        }));
+
+        setAutoFilled(prev => ({
+          ...prev,
+          numero: true,
+          descricao: true, // Marca como preenchido
+          sala: true,
+          observacao: !!item.OBSERVAÇÃO,
+          estado: !!item['ESTADO DE CONSERVAÇÃO'],
+          status: !!item.STATUS,
+          etiquetado: !!item.ETIQUETADO,
+          recomendacao: !!item.RECOMENDAÇÃO
+        }));
+      } else {
+        alert('Item não encontrado com o número: ' + form.numero);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao buscar item.');
+    } finally {
+      setLoading(false);
+    }
+}
+  // -----------------------------------
 
   useEffect(() => {
     async function handle(){
@@ -40,7 +82,7 @@ export default function VoiceForm({ db, initialRoom }: Props){
         const item = db && parsed.numero ? findItemByNumero(db, parsed.numero) : null
         const filled = fillFormWithData(item, parsed)
         setForm(filled)
-        // compute which fields were auto-filled (from parsed or from matched item)
+        
         const flags: Record<keyof FormData, boolean> = {
           numero: Boolean((parsed.numero ?? '') || (item && (item.numero ?? item.id ?? item.etiqueta ?? ''))),
           descricao: Boolean((parsed.descricao ?? '') || (item && (item.descricao ?? item.descricao_item ?? item.Descricao ?? ''))),
@@ -82,10 +124,28 @@ export default function VoiceForm({ db, initialRoom }: Props){
       </div>
 
       <form onSubmit={(e)=>e.preventDefault()}>
+        
+        {/* CAMPO NÚMERO MODIFICADO COM BOTÃO DE LUPA */}
         <div className="field">
           <label>Número</label>
-          <input className={autoFilled.numero ? 'auto-filled' : ''} value={form.numero} onChange={e=>{ setForm({...form, numero:e.target.value}); setAutoFilled(prev=>({...prev, numero:false})); }} />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input 
+              className={autoFilled.numero ? 'auto-filled' : ''} 
+              value={form.numero} 
+              onChange={e=>{ setForm({...form, numero:e.target.value}); setAutoFilled(prev=>({...prev, numero:false})); }} 
+              placeholder="Digite o ID..."
+            />
+            <button 
+              type="button" 
+              onClick={handleManualSearch}
+              title="Buscar dados manualmente"
+              style={{ padding: '0 12px', cursor: 'pointer' }}
+            >
+              🔍
+            </button>
+          </div>
         </div>
+
         <div className="field">
           <label>Descrição</label>
           <input className={autoFilled.descricao ? 'auto-filled' : ''} value={form.descricao} onChange={e=>{ setForm({...form, descricao:e.target.value}); setAutoFilled(prev=>({...prev, descricao:false})); }} />
