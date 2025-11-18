@@ -25,6 +25,11 @@ export default function VoiceForm({ db, initialRoom }: Props){
 
   const handleManualSearch = () => {
     if (!form.numero) return alert('Digite um número para buscar.');
+
+    setAutoFilled({
+      numero: false, descricao: false, sala: false, estado: false, status: false, etiquetado: false, observacao: false, recomendacao: false,
+    });
+    setForm(f => ({...f, descricao: '', sala: '', estado: '', status: '', etiquetado: '', observacao: '', recomendacao: ''})); 
     
     // Se db for nulo, tente usar a chave padrão como fallback
     const dbToUse = db || 'ifb_saved_bases'; 
