@@ -20,18 +20,42 @@ export default function RoomsPage(){
     const db = await deserializeDbFromBase64(b.b64)
     // try to get distinct room/local/Sala column
     try {
-      const info = db.exec("PRAGMA table_info('item');");
+      // compat: testar tabela 'item' primeiro, se não existir testar 'itens' (bases antigas)
+      let info = db.exec("PRAGMA table_info('item');");
+      let tableName = 'item'
+      if (!info || info.length === 0) {
+        info = db.exec("PRAGMA table_info('itens');");
+        if (info && info.length > 0) tableName = 'itens'
+      }
+      if (!info || info.length === 0) throw new Error('Tabela "item"/"itens" não encontrada no banco')
       const cols = (info[0]?.values ?? []).map((v:any)=>v[1].toString())
-      const candidates = ['sala','local','room','Sala','Local','Room']
-      const roomCol = cols.find((c:any)=>candidates.includes(c)) || cols[0]
-      const stmt = db.prepare(`SELECT DISTINCT "${roomCol}" as room FROM item;`)
+
+      // busca por candidatos de nome de coluna de sala (case-insensitive, trim, substrings)
+      const lowerCols = cols.map((c:string)=>c.toString().toLowerCase().trim())
+      const candidates = ['sala','SALA','local','room','localizacao','localização','sala_nome']
+      let idx = lowerCols.findIndex((c:string)=> candidates.includes(c))
+      if (idx === -1) {
+        // tentativa por substring (ex.: 'sala ' , ' sala', 'localidade')
+        idx = lowerCols.findIndex((c:string)=> c.includes('sala') || c.includes('local') || c.includes('room'))
+      }
+      if (idx === -1) idx = 0
+      const roomCol = cols[idx]
+
+      const stmt = db.prepare(`SELECT DISTINCT "${roomCol}" as room FROM ${tableName} WHERE "${roomCol}" IS NOT NULL;`)
       const arr:string[] = []
       while(stmt.step()){
         const o = stmt.getAsObject()
-        if (o.room) arr.push(o.room.toString())
+        const val = o.room
+        if (val != null) {
+          const s = String(val).trim()
+          if (s) arr.push(s)
+        }
       }
       stmt.free()
-      setRooms(arr.filter(Boolean))
+      // dedupe and sort
+      const uniq = Array.from(new Set(arr))
+      uniq.sort((a,b)=>a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }))
+      setRooms(uniq.filter(Boolean))
       setSelectedBaseId(b.id)
       // Salvar a base selecionada na sessão para uso posterior
       sessionStorage.setItem('selected_base_b64', b.b64)
