@@ -62,62 +62,6 @@ export default function VoiceForm({ db, initialRoom }: Props){
     handle()
   }, [text, db])
 
-  // Import handled by parent App; VoiceForm only uses `db` prop.
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-
-  const handleCsvDownload = async () => {
-    const input = fileInputRef.current
-    const f = input?.files?.[0]
-    if (!f) return alert('Selecione um arquivo CSV primeiro')
-    setLoading(true)
-    try {
-      const bytes = await csvFileToDbBytes(f)
-      const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
-      const ab = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength) as ArrayBuffer
-      const blob = new Blob([ab], { type: 'application/octet-stream' })
-      const filename = (f.name.replace(/\.csv$/i, '') || 'database') + '.db'
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-    } catch (err:any) {
-      console.error(err)
-      alert('Erro ao converter CSV: ' + (err.message || err))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleCsvSaveToFolder = async () => {
-    const input = fileInputRef.current
-    const f = input?.files?.[0]
-    if (!f) return alert('Selecione um arquivo CSV primeiro')
-    if (!(window as any).showDirectoryPicker) {
-      return alert('API de acesso a arquivos não suportada neste navegador. Use o botão de baixar.')
-    }
-    setLoading(true)
-    try {
-      const bytes = await csvFileToDbBytes(f)
-      const filename = (f.name.replace(/\.csv$/i, '') || 'database') + '.db'
-      const dirHandle = await (window as any).showDirectoryPicker()
-      const fileHandle = await dirHandle.getFileHandle(filename, { create: true })
-      const writable = await fileHandle.createWritable()
-      const arr2 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
-      const ab2 = arr2.buffer.slice(arr2.byteOffset, arr2.byteOffset + arr2.byteLength) as ArrayBuffer
-      await writable.write(ab2)
-      await writable.close()
-      alert('Arquivo salvo: ' + filename)
-    } catch (err:any) {
-      console.error(err)
-      alert('Erro ao salvar arquivo: ' + (err.message || err))
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <div>
@@ -134,15 +78,6 @@ export default function VoiceForm({ db, initialRoom }: Props){
         <div>
           <div><strong>Transcrição:</strong></div>
           <div style={{minHeight:24}}>{lastTranscript}</div>
-        </div>
-      </div>
-
-      <div style={{marginBottom:12}}>
-        <label>Importar CSV local</label>
-        <div style={{display:'flex', gap:8, alignItems:'center', marginTop:8}}>
-          <input ref={fileInputRef} id="csvFile" type="file" accept=".csv,text/csv" />
-          <button type="button" onClick={handleCsvDownload}>Converter e baixar .db</button>
-          <button type="button" onClick={handleCsvSaveToFolder}>Converter e salvar em pasta...</button>
         </div>
       </div>
 

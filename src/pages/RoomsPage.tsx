@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { deserializeDbFromBase64 } from '../lib/db'
 
 const STORAGE_KEY = 'ifb_saved_bases'
 
@@ -17,48 +16,41 @@ export default function RoomsPage(){
   },[])
 
   const loadRoomsFromBase = async (b:any) => {
-    const db = await deserializeDbFromBase64(b.b64)
-    // try to get distinct room/local/Sala column
     try {
-      // compat: testar tabela 'item' primeiro, se não existir testar 'itens' (bases antigas)
-      let info = db.exec("PRAGMA table_info('item');");
-      let tableName = 'item'
-      if (!info || info.length === 0) {
-        info = db.exec("PRAGMA table_info('itens');");
-        if (info && info.length > 0) tableName = 'itens'
-      }
-      if (!info || info.length === 0) throw new Error('Tabela "item"/"itens" não encontrada no banco')
-      const cols = (info[0]?.values ?? []).map((v:any)=>v[1].toString())
+      const headers: string[] = (b?.json?.headers) || []
+      const rows: any[] = (b?.json?.rows) || []
 
-      // busca por candidatos de nome de coluna de sala (case-insensitive, trim, substrings)
-      const lowerCols = cols.map((c:string)=>c.toString().toLowerCase().trim())
-      const candidates = ['sala','SALA','local','room','localizacao','localização','sala_nome']
-      let idx = lowerCols.findIndex((c:string)=> candidates.includes(c))
+      if (!headers || headers.length === 0) {
+        alert('A base selecionada não contém cabeçalhos (headers). Importe um CSV com cabeçalho.')
+        return
+      }
+
+      // busca por candidatos de nome de coluna de sala (case-insensitive, substrings)
+      const lowerHeaders = headers.map(h => String(h).toLowerCase().trim())
+      const candidates = ['sala','local','room','localizacao','localização','sala_nome','ambiente','setor']
+      let idx = lowerHeaders.findIndex(h => candidates.includes(h))
       if (idx === -1) {
-        // tentativa por substring (ex.: 'sala ' , ' sala', 'localidade')
-        idx = lowerCols.findIndex((c:string)=> c.includes('sala') || c.includes('local') || c.includes('room'))
+        idx = lowerHeaders.findIndex(h => h.includes('sala') || h.includes('local') || h.includes('room'))
       }
       if (idx === -1) idx = 0
-      const roomCol = cols[idx]
+      const roomCol = headers[idx]
 
-      const stmt = db.prepare(`SELECT DISTINCT "${roomCol}" as room FROM ${tableName} WHERE "${roomCol}" IS NOT NULL;`)
-      const arr:string[] = []
-      while(stmt.step()){
-        const o = stmt.getAsObject()
-        const val = o.room
+      const arr: string[] = []
+      for (const r of rows) {
+        const val = r?.[roomCol]
         if (val != null) {
           const s = String(val).trim()
           if (s) arr.push(s)
         }
       }
-      stmt.free()
-      // dedupe and sort
+
       const uniq = Array.from(new Set(arr))
       uniq.sort((a,b)=>a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }))
       setRooms(uniq.filter(Boolean))
       setSelectedBaseId(b.id)
-      // Salvar a base selecionada na sessão para uso posterior
-      sessionStorage.setItem('selected_base_b64', b.b64)
+      // Salvar a base selecionada (JSON) na sessão para uso posterior
+      sessionStorage.setItem('selected_base_json', JSON.stringify(b.json))
+      sessionStorage.setItem('selected_base_id', b.id)
     } catch (err:any){
       console.error(err)
       alert('Erro ao listar salas: ' + (err.message||err))
@@ -67,7 +59,6 @@ export default function RoomsPage(){
 
   const handleSelectRoom = (room:string) => {
     if (!selectedBaseId) return alert('Selecione uma base primeiro')
-    sessionStorage.setItem('selected_base_id', selectedBaseId)
     sessionStorage.setItem('selected_room', room)
     navigate('/item')
   }
@@ -82,7 +73,7 @@ export default function RoomsPage(){
             <li key={b.id} style={{marginBottom:8}}>
               <div style={{display:'flex',gap:8,alignItems:'center'}}>
                 <div style={{flex:1,overflow:'hidden',textOverflow:'ellipsis'}}>{b.name}</div>
-                <button onClick={()=>loadRoomsFromBase(b)}>Selecionar</button>
+                <button onClick={()=>loadRoomsFromBase(b)}>Carregar salas</button>
               </div>
             </li>
           ))}

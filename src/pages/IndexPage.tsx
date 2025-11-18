@@ -71,6 +71,31 @@ export default function IndexPage(){
     }
   }
 
+  const handleExportCsv = async (b: SavedBase) => {
+    setLoading(true)
+    try {
+      const headers: string[] = (b.json && b.json.headers) || []
+      const rows: any[] = (b.json && b.json.rows) || []
+      const fields = headers.length ? headers : (rows[0] ? Object.keys(rows[0]) : [])
+      const csv = Papa.unparse({ fields, data: rows })
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const baseName = (b.name || 'export').replace(/\.json$/i, '.csv')
+      a.download = baseName
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      alert('Arquivo CSV baixado: ' + baseName)
+    } catch (err: any) {
+      alert('Erro ao exportar CSV: ' + (err.message || err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSelect = (b: SavedBase) => {
     sessionStorage.setItem('selected_base_id', b.id)
     navigate('/salas')
@@ -105,9 +130,10 @@ export default function IndexPage(){
         {bases.map(b => (
           <li key={b.id} style={{marginBottom:8}}>
             <strong style={{display:'block',maxWidth:700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{b.name}</strong>
-            <div style={{display:'flex',gap:8,marginTop:4}}>
+              <div style={{display:'flex',gap:8,marginTop:4}}>
               <button onClick={()=>handleSelect(b)}>Selecionar</button>
               <button onClick={()=>handleExportJson(b)}>Baixar JSON</button>
+              <button onClick={()=>handleExportCsv(b)}>Baixar CSV</button>
               <button onClick={()=>handleDelete(b.id)}>Remover</button>
             </div>
           </li>
