@@ -40,7 +40,11 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {rooms.map((room) => {
-            const itemCount = getRoomItems(room).length;
+            const roomItems = getRoomItems(room);
+            const itemCount = roomItems.length;
+            const verifiedCount = roomItems.filter(
+              item => item.STATUS === "Localizado" || item.STATUS === "Migrado"
+            ).length;
             
             return (
               <Card key={room} className="hover:shadow-lg transition-shadow">
@@ -49,7 +53,7 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
                     <DoorOpen className="size-5 text-green-600" />
                     {room}
                   </CardTitle>
-                  <CardDescription>{itemCount} itens cadastrados</CardDescription>
+                  <CardDescription>Verificados: {verifiedCount} / {itemCount} itens</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <Button 

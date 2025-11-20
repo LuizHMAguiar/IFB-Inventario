@@ -5,7 +5,6 @@ import { toast } from "sonner";
 
 interface VoiceCommandProps {
   onCommand: (command: VoiceCommandResult) => void;
-  onFillForm: (data: { estado?: string; observacao?: string; recomendacao?: string }) => void;
   isActive: boolean;
 }
 
@@ -17,7 +16,7 @@ export interface VoiceCommandResult {
   rawText: string;
 }
 
-export function VoiceCommand({ onCommand, onFillForm, isActive }: VoiceCommandProps) {
+export function VoiceCommand({ onCommand, isActive }: VoiceCommandProps) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const recognitionRef = useRef<any>(null);
@@ -56,7 +55,6 @@ export function VoiceCommand({ onCommand, onFillForm, isActive }: VoiceCommandPr
 
       if (Object.keys(formData).length > 0) {
         console.log("Dados para preenchimento do formulário:", formData);
-        onFillForm(formData);
       }
       console.log("--- [Fim do Comando de Voz] ---");
       
@@ -80,7 +78,7 @@ export function VoiceCommand({ onCommand, onFillForm, isActive }: VoiceCommandPr
         recognitionRef.current.stop();
       }
     };
-  }, [onCommand, onFillForm]);
+  }, [onCommand]);
 
   const parseVoiceCommand = (text: string): VoiceCommandResult => {
     console.log("Iniciando a interpretação do comando...");
