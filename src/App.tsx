@@ -1,27 +1,61 @@
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
-import IndexPage from './pages/IndexPage'
-import RoomsPage from './pages/RoomsPage'
-import ItemPage from './pages/ItemPage'
+import { useState } from "react";
+import { type Database } from "./types";
+import { DatabaseManagement } from "./components/DatabaseManagement";
+import { RoomSelection } from "./components/RoomSelection";
+import { ItemForm } from "./components/ItemForm";
+import { Toaster } from "./components/ui/sonner";
 
-export default function App(){
+type Screen = "database" | "room" | "form";
+
+export default function App() {
+  const [currentScreen, setCurrentScreen] = useState<Screen>("database");
+  const [selectedDatabase, setSelectedDatabase] = useState<Database | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<string>("");
+
+  const handleSelectDatabase = (database: Database) => {
+    setSelectedDatabase(database);
+    setCurrentScreen("room");
+  };
+
+  const handleSelectRoom = (room: string) => {
+    setSelectedRoom(room);
+    setCurrentScreen("form");
+  };
+
+  const handleBackToDatabase = () => {
+    setCurrentScreen("database");
+    setSelectedDatabase(null);
+    setSelectedRoom("");
+  };
+
+  const handleBackToRoom = () => {
+    setCurrentScreen("room");
+    setSelectedRoom("");
+  };
+
   return (
-    <BrowserRouter>
-      <div>
-        <header style={{padding:12, background:'#fff', borderBottom:'1px solid #eee'}}>
-          <nav style={{display:'flex', gap:12}}>
-            <Link to="/">Selecionar base</Link>
-            <Link to="/salas">Salas</Link>
-            <Link to="/item">Item</Link>
-          </nav>
-        </header>
-        <main style={{padding:20}}>
-          <Routes>
-            <Route path="/" element={<IndexPage />} />
-            <Route path="/salas" element={<RoomsPage />} />
-            <Route path="/item" element={<ItemPage />} />
-          </Routes>
-        </main>
-      </div>
-    </BrowserRouter>
-  )
+    <>
+      {currentScreen === "database" && (
+        <DatabaseManagement onSelectDatabase={handleSelectDatabase} />
+      )}
+
+      {currentScreen === "room" && selectedDatabase && (
+        <RoomSelection
+          database={selectedDatabase}
+          onSelectRoom={handleSelectRoom}
+          onBack={handleBackToDatabase}
+        />
+      )}
+
+      {currentScreen === "form" && selectedDatabase && selectedRoom && (
+        <ItemForm
+          database={selectedDatabase}
+          selectedRoom={selectedRoom}
+          onBack={handleBackToRoom}
+        />
+      )}
+
+      <Toaster position="top-right" />
+    </>
+  );
 }
