@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "./ui/button";
 import { Mic, MicOff, Volume2 } from "lucide-react";
 import { toast } from "sonner";
- 
+
 interface VoiceCommandProps {
   onCommand: (command: VoiceCommandResult) => void;
-  onFillForm: (data: { estado?: string; observacao?: string }) => void;
+  onFillForm: (data: { estado?: string; observacao?: string; recomendacao?: string }) => void;
   isActive: boolean;
 }
 
@@ -13,6 +13,7 @@ export interface VoiceCommandResult {
   numero?: string;
   estado?: string;
   observacao?: string;
+  recomendacao?: string;
   rawText: string;
 }
 
@@ -44,15 +45,20 @@ export function VoiceCommand({ onCommand, onFillForm, isActive }: VoiceCommandPr
     recognition.onresult = (event: any) => {
       const speechResult = event.results[0][0].transcript;
       setTranscript(speechResult);
+      console.log("--- [Comando de Voz Recebido] ---");
+      console.log("Texto bruto:", speechResult);
       
       const command = parseVoiceCommand(speechResult);
+      console.log("Comando interpretado:", command);
       onCommand(command);
 
       const { numero: _numero, rawText: _rawText, ...formData } = command;
 
       if (Object.keys(formData).length > 0) {
+        console.log("Dados para preenchimento do formulário:", formData);
         onFillForm(formData);
       }
+      console.log("--- [Fim do Comando de Voz] ---");
       
       toast.info(`Comando detectado: ${speechResult}`);
     };
@@ -77,35 +83,53 @@ export function VoiceCommand({ onCommand, onFillForm, isActive }: VoiceCommandPr
   }, [onCommand, onFillForm]);
 
   const parseVoiceCommand = (text: string): VoiceCommandResult => {
-    const lowerText = text.toLowerCase();
+    console.log("Iniciando a interpretação do comando...");
+    // Normaliza o texto: minúsculas e sem pontuação
+    const normalizedText = text.toLowerCase().replace(/[.,]/g, '');
+    console.log("Texto normalizado:", normalizedText);
+
     const result: VoiceCommandResult = {
       rawText: text
     };
-  
-    // Extrai o número do item (procura por "número" seguido de dígitos, ou apenas dígitos)
-    const numeroMatch = lowerText.match(/(?:número\s+)?(\d+)/);
+
+    const capitalizeFirstLetter = (str: string) => {
+      if (!str) return str;
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    };
+
+    // Extrai o número do item (com ou sem a palavra "número"/"item")
+    const numeroMatch = normalizedText.match(/^(?:\d+|número\s+\d+|item\s+\d+)/);
     if (numeroMatch) {
-      result.numero = numeroMatch[1];
-    }
-  
-    // Extrai o estado (procura por "estado" seguido do valor até encontrar "observação" ou o fim da string)
-    const estadoMatch = lowerText.match(/estado\s+([^observação]+)/i);
-    if (estadoMatch) {
-      let estado = estadoMatch[1].trim();
-      // Remove a palavra "observação" se ela foi capturada indevidamente
-      const obsIndex = estado.indexOf('observação');
-      if (obsIndex !== -1) {
-        estado = estado.substring(0, obsIndex).trim();
+      const numeroStr = numeroMatch[0].match(/\d+/);
+      if (numeroStr) {
+        result.numero = numeroStr[0];
+        console.log(`Número encontrado: ${result.numero}`);
       }
-      result.estado = estado;
     }
-  
-    // Extrai a observação (procura por "observação" seguido do resto da string)
-    const observacaoMatch = lowerText.match(/observa[çc][ãa]o\s+(.+)$/i);
+
+    // Extrai o estado
+    const estadoMatch = normalizedText.match(/estado\s+([\w\sà-ú]+)/i);
+    if (estadoMatch) {
+      const potentialEstado = estadoMatch[1].split(/observa[çc][ãa]o|recomenda[çc][ãa]o/)[0].trim();
+      result.estado = capitalizeFirstLetter(potentialEstado);
+      console.log(`Estado encontrado: ${result.estado}`);
+    }
+
+    // Extrai a observação
+    const observacaoMatch = normalizedText.match(/observa[çc][ãa]o\s+([\w\sà-ú]+)/i);
     if (observacaoMatch) {
-      result.observacao = observacaoMatch[1].trim();
+      const potentialObservacao = observacaoMatch[1].split(/estado|recomenda[çc][ãa]o/)[0].trim();
+      result.observacao = capitalizeFirstLetter(potentialObservacao);
+      console.log(`Observação encontrada: ${result.observacao}`);
     }
-  
+
+    // Extrai a recomendação
+    const recomendacaoMatch = normalizedText.match(/recomenda[çc][ãa]o\s+(.+)$/i);
+    if (recomendacaoMatch) {
+      result.recomendacao = capitalizeFirstLetter(recomendacaoMatch[1].trim());
+      console.log(`Número encontrado: ${result.numero}`);
+    }
+
     return result;
   };
 
@@ -167,7 +191,7 @@ export function VoiceCommand({ onCommand, onFillForm, isActive }: VoiceCommandPr
       <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
         <p className="text-sm mb-2">Exemplo de comando de voz:</p>
         <code className="text-sm bg-white px-3 py-2 rounded block">
-          "Número 1457 estado bom observação armário sem chave"
+          "176 recomendação gaveteiro precisa de reparo"
         </code>
       </div>
     </div>

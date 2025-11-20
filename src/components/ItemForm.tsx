@@ -136,6 +136,12 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
       handleFieldChange("OBSERVAÇÃO", observacao);
       toast.success(`Observação atualizada`);
     }
+
+    // If recomendacao detected, update the field
+    if (command.recomendacao && currentItem) {
+      handleFieldChange("RECOMENDAÇÃO", command.recomendacao);
+      toast.success(`Recomendação atualizada`);
+    }
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
