@@ -189,15 +189,29 @@ export const parseCSV = (csvText: string): CSVParseResult => {
   };
 };
 
-export const exportCSV = (items: InventoryItem[]): string => {
-  if (items.length === 0) {
-    return REQUIRED_COLUMNS.join(',');
+const escapeCSVField = (field: any): string => {
+  if (field === null || field === undefined) {
+    return '';
+  }
+  let value = String(field);
+
+  // Replace newlines with a space to ensure one line per item
+  value = value.replace(/(\r\n|\n|\r)/gm, " ");
+
+  // Check if the value contains characters that require quoting
+  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+    // Escape double quotes within the value
+    const escapedValue = value.replace(/"/g, '""');
+    // Wrap the entire value in double quotes
+    return `"${escapedValue}"`;
   }
 
+  return value;
+};
+
+export const exportCSV = (items: InventoryItem[]): string => {
   const headers = REQUIRED_COLUMNS;
-  const rows = items.map(item => 
-    headers.map(header => item[header as keyof InventoryItem] || '').join(',')
-  );
+  const rows = items.map(item => headers.map(header => escapeCSVField(item[header as keyof InventoryItem])).join(','));
 
   return [headers.join(','), ...rows].join('\n');
 };
