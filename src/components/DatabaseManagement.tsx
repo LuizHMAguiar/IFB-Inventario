@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { type Database, type InventoryItem } from "../types";
+import { type Database } from "../types";
 import { parseCSV, exportCSV, downloadCSV, type CSVParseResult } from "../utils/csv";
 import { getAllDatabases, saveDatabase, deleteDatabase } from "../utils/storage";
 import { Button } from "./ui/button";
@@ -19,7 +19,6 @@ export function DatabaseManagement({ onSelectDatabase }: DatabaseManagementProps
   const [databases, setDatabases] = useState<Database[]>([]);
   const [newDatabaseName, setNewDatabaseName] = useState("");
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
-  const [importError, setImportError] = useState<CSVParseResult | null>(null);
   const [pendingImport, setPendingImport] = useState<CSVParseResult | null>(null);
 
   useEffect(() => {
