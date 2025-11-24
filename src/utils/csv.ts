@@ -65,9 +65,6 @@ export const parseCSV = (csvText: string): CSVParseResult => {
   // Normalize line endings
   normalizedText = normalizedText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   
-  // Count original lines for accurate reporting
-  const originalLineCount = normalizedText.split('\n').length;
-  
   const lines: string[] = [];
   let currentLine = '';
   let inQuotes = false;
