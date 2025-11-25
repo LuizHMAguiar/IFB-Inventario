@@ -2,8 +2,9 @@ import { useState, useMemo } from "react";
 import { type Database, type InventoryItem } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { ArrowLeft, DoorOpen, Eye } from "lucide-react";
+import { ArrowLeft, DoorOpen, Eye, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { Input } from "./ui/input";
 import { ScrollArea } from "./ui/scroll-area";
 
 interface RoomSelectionProps {
@@ -14,6 +15,8 @@ interface RoomSelectionProps {
 
 export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionProps) {
   const [selectedRoomForPreview, setSelectedRoomForPreview] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roomSearchTerm, setRoomSearchTerm] = useState("");
 
   const rooms = useMemo(() => {
     const uniqueRooms = new Set(database.items.map(item => item.SALA));
@@ -24,7 +27,25 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
     return database.items.filter(item => item.SALA === room);
   };
 
-  const previewItems = selectedRoomForPreview ? getRoomItems(selectedRoomForPreview) : [];
+  const previewItems = useMemo(() => {
+    if (!selectedRoomForPreview) return [];
+    const items = getRoomItems(selectedRoomForPreview);
+    if (!searchTerm.trim()) return items;
+
+    return items.filter(item => 
+      item.NUMERO.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.DESCRIÇÃO.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [selectedRoomForPreview, searchTerm, database.items]);
+
+  const filteredRooms = useMemo(() => {
+    if (!roomSearchTerm.trim()) {
+      return rooms;
+    }
+    return rooms.filter(room =>
+      room.toLowerCase().includes(roomSearchTerm.toLowerCase())
+    );
+  }, [rooms, roomSearchTerm]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-8">
@@ -38,8 +59,16 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
           <p className="text-slate-600">Selecione uma sala para iniciar a verificação</p>
         </div>
 
+        <div className="mb-6">
+          <Input
+            placeholder="Buscar pelo nome da sala..."
+            value={roomSearchTerm}
+            onChange={(e) => setRoomSearchTerm(e.target.value)}
+            className="max-w-sm"
+          />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {rooms.map((room) => {
+          {filteredRooms.map((room) => {
             const roomItems = getRoomItems(room);
             const itemCount = roomItems.length;
             const verifiedCount = roomItems.filter(
@@ -68,7 +97,10 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
                       <Button
                         variant="outline"
                         className="w-full gap-2"
-                        onClick={() => setSelectedRoomForPreview(room)}
+                        onClick={() => {
+                          setSelectedRoomForPreview(room);
+                          setSearchTerm(""); // Limpa a busca ao abrir
+                        }}
                       >
                         <Eye className="size-4" />
                         Ver Itens
@@ -81,6 +113,13 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
                           Total de {itemCount} itens cadastrados
                         </DialogDescription>
                       </DialogHeader>
+                      <div className="py-2">
+                        <Input 
+                          placeholder="Buscar por número ou descrição..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                      </div>
                       <ScrollArea className="h-[400px] pr-4">
                         <div className="space-y-2">
                           {previewItems.map((item) => {
@@ -130,6 +169,13 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
             );
           })}
         </div>
+
+        {rooms.length > 0 && filteredRooms.length === 0 && (
+          <div className="text-center py-12">
+            <Search className="size-16 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500">Nenhuma sala encontrada com o termo "{roomSearchTerm}"</p>
+          </div>
+        )}
 
         {rooms.length === 0 && (
           <div className="text-center py-12">
