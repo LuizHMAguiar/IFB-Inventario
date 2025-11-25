@@ -11,6 +11,7 @@ import { VoiceCommand, type VoiceCommandResult } from "./VoiceCommand";
 import { toast } from "sonner";
 import { Badge } from "./ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import NotifError from '/error.mp3';
 
 interface ItemFormProps {
   database: Database;
@@ -35,7 +36,7 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
   const searchItem = (numero: string) => {
     if (!numero.trim()) {
       toast.error("Digite um número de item");
-      const audio = new Audio('/public/error.mp3');
+      const audio = new Audio(NotifError);
       audio.play();
       return;
     }
@@ -44,7 +45,7 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
     
     if (!item) {
       toast.error(`Item ${numero} não encontrado na base de dados`);
-      const audio = new Audio('/public/error.mp3');
+      const audio = new Audio(NotifError);
       audio.play();
       setCurrentItem(null);
       setFormData({});
@@ -93,7 +94,7 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
       toast.success(`Item ${numero} localizado na sala correta`);
     } else {
       toast.warning(`Item ${numero} migrado da sala ${item.SALA} para ${selectedRoom}`);
-      const audio = new Audio('/public/error.mp3');
+      const audio = new Audio(NotifError);
       audio.play();
     }
   };
@@ -165,13 +166,16 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
             <ArrowLeft className="size-4" />
             Voltar para Seleção de Sala
           </Button>
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-slate-900">Verificação de Itens</h1>
-            <Badge variant="outline" className="text-lg px-4 py-2">
-              Sala: {selectedRoom}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-2">
+            <h1 className="text-slate-900 text-lg">Verificação de Itens</h1>
+            <Badge className="text-sm px-4 py-2 bg-white-100 text-blue-800">
+              <div>
+                Sala: <span className="text-sm">{selectedRoom.length > 30 ? `${selectedRoom.substring(0, 30)}...` : selectedRoom}</span>
+                <p className="text-slate-600 text-sm">Base de dados: {database.name}</p>
+              </div>
             </Badge>
           </div>
-          <p className="text-slate-600">Base de dados: {database.name}</p>
+          
         </div>
 
         {/* Voice Command Section */}
