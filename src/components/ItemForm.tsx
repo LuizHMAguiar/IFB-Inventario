@@ -35,6 +35,8 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
   const searchItem = (numero: string) => {
     if (!numero.trim()) {
       toast.error("Digite um número de item");
+      const audio = new Audio('/public/error.mp3');
+      audio.play();
       return;
     }
 
@@ -42,6 +44,8 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
     
     if (!item) {
       toast.error(`Item ${numero} não encontrado na base de dados`);
+      const audio = new Audio('/public/error.mp3');
+      audio.play();
       setCurrentItem(null);
       setFormData({});
       return;
@@ -89,6 +93,8 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
       toast.success(`Item ${numero} localizado na sala correta`);
     } else {
       toast.warning(`Item ${numero} migrado da sala ${item.SALA} para ${selectedRoom}`);
+      const audio = new Audio('/public/error.mp3');
+      audio.play();
     }
   };
 
