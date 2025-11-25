@@ -75,7 +75,7 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
     updateItem(database.id, numero.trim(), {
       STATUS: newStatus,
       ETIQUETADO: "Sim",
-      "ESTADO DE CONSERVAÇÃO": "Bom",
+      "ESTADO DE CONSERVAÇÃO": item["ESTADO DE CONSERVAÇÃO"]? item["ESTADO DE CONSERVAÇÃO"] : "Bom",
       OBSERVAÇÃO: newObservacao
     });
 

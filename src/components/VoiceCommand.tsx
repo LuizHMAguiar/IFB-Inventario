@@ -186,12 +186,13 @@ export function VoiceCommand({ onCommand, isActive }: VoiceCommandProps) {
         </div>
       )}
 
-      <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+      {/*<div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
         <p className="text-sm mb-2">Exemplo de comando de voz:</p>
         <code className="text-sm bg-white px-3 py-2 rounded block">
           "176 recomendação gaveteiro precisa de reparo"
         </code>
       </div>
+      */}
     </div>
   );
 }
