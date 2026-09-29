@@ -19,17 +19,33 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
   const [selectedRoomForPreview, setSelectedRoomForPreview] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [roomSearchTerm, setRoomSearchTerm] = useState("");
-  const [markedItems, setMarkedItems] = useState<Set<string>>(() => new Set());
+  const [itemStatusOverrides, setItemStatusOverrides] = useState<Record<string, string>>({});
 
-  const markItemAsLocated = async (item: InventoryItem) => {
+  const getItemStatus = (item: InventoryItem) => itemStatusOverrides[item.NUMERO] ?? item.STATUS;
+
+  const toggleItemLocated = async (item: InventoryItem) => {
+    const isCurrentlyLocated = getItemStatus(item) === "Localizado";
+    const nextStatus = isCurrentlyLocated ? "Não Localizado" : "Localizado";
+    const updates = isCurrentlyLocated
+      ? {
+          STATUS: nextStatus,
+          ETIQUETADO: "Não",
+          "ESTADO DE CONSERVAÇÃO": "",
+          OBSERVAÇÃO: "",
+          RECOMENDAÇÃO: "",
+        }
+      : {
+          STATUS: nextStatus,
+          ETIQUETADO: "Sim",
+          "ESTADO DE CONSERVAÇÃO": item["ESTADO DE CONSERVAÇÃO"] || "Bom",
+        };
+
     try {
-      await updateItem(database.id, item.NUMERO, {
-        STATUS: "Localizado",
-        ETIQUETADO: "Sim",
-        "ESTADO DE CONSERVAÇÃO": item["ESTADO DE CONSERVAÇÃO"] || "Bom",
-      });
-      setMarkedItems((current) => new Set(current).add(item.NUMERO));
-      toast.success(`Item ${item.NUMERO} marcado como localizado`);
+      await updateItem(database.id, item.NUMERO, updates);
+      setItemStatusOverrides((current) => ({ ...current, [item.NUMERO]: nextStatus }));
+      toast.success(isCurrentlyLocated
+        ? `Localização do item ${item.NUMERO} desfeita`
+        : `Item ${item.NUMERO} marcado como localizado`);
     } catch (error) {
       toast.error(`Erro ao atualizar item: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
@@ -89,7 +105,7 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
             const roomItems = getRoomItems(room);
             const itemCount = roomItems.length;
             const verifiedCount = roomItems.filter(
-              item => item.STATUS === "Localizado" || item.STATUS === "Migrado" || markedItems.has(item.NUMERO)
+              item => getItemStatus(item) === "Localizado" || getItemStatus(item) === "Migrado"
             ).length;
             
             return (
@@ -140,8 +156,8 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
                       <ScrollArea className="h-[400px] pr-4">
                         <div className="space-y-2">
                           {previewItems.map((item) => {
-                            const status = item.STATUS;
-                            const isLocalizado = status === "Localizado" || markedItems.has(item.NUMERO);
+                            const status = getItemStatus(item);
+                            const isLocalizado = status === "Localizado";
                             const isMigrado = status === "Migrado";
                             
                             return (
@@ -163,13 +179,13 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
                                   </div>
                                   <div className="min-w-0 flex-1">
                                     <p>{item.DESCRIÇÃO}</p>
-                                    {item.STATUS && (
+                                    {status && (
                                       <p className={`text-sm ${
                                         isLocalizado ? 'text-green-600' :
                                         isMigrado ? 'text-yellow-600' :
                                         'text-slate-500'
                                       }`}>
-                                        Status: {item.STATUS}
+                                        Status: {status}
                                       </p>
                                     )}
                                   </div>
@@ -178,11 +194,14 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
                                       type="button"
                                       variant="ghost"
                                       size="icon"
-                                      aria-label={`Marcar item ${item.NUMERO} como localizado`}
-                                      title="Marcar como localizado"
-                                      disabled={isLocalizado}
-                                      onClick={() => void markItemAsLocated(item)}
-                                      className="text-green-700 hover:bg-green-100 hover:text-green-800"
+                                      aria-label={isLocalizado
+                                        ? `Desfazer localização do item ${item.NUMERO}`
+                                        : `Marcar item ${item.NUMERO} como localizado`}
+                                      title={isLocalizado ? "Desfazer localização" : "Marcar como localizado"}
+                                      onClick={() => void toggleItemLocated(item)}
+                                      className={isLocalizado
+                                        ? "text-amber-700 hover:bg-amber-100 hover:text-amber-800"
+                                        : "text-green-700 hover:bg-green-100 hover:text-green-800"}
                                     >
                                       <Check className="size-4" />
                                     </Button>
