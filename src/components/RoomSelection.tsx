@@ -3,7 +3,7 @@ import { type Database, type InventoryItem } from "../types";
 import { updateItem } from "../utils/storage";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { ArrowLeft, Check, DoorOpen, Eye, Pencil, Search } from "lucide-react";
+import { ArrowLeft, Check, DoorOpen, Eye, FileText, Pencil, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { ScrollArea } from "./ui/scroll-area";
@@ -159,6 +159,7 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
                             const status = getItemStatus(item);
                             const isLocalizado = status === "Localizado";
                             const isMigrado = status === "Migrado";
+                            const hasNotes = Boolean(item.OBSERVAÇÃO?.trim() || item.RECOMENDAÇÃO?.trim());
                             
                             return (
                               <div
@@ -178,7 +179,15 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
                                     {item.NUMERO}
                                   </div>
                                   <div className="min-w-0 flex-1">
-                                    <p>{item.DESCRIÇÃO}</p>
+                                    <p className="font-semibold">
+                                      {item.DESCRIÇÃO}
+                                      {hasNotes && (
+                                        <FileText
+                                          className="ml-1 inline-block size-4 align-text-bottom text-slate-500"
+                                          aria-label="Possui observação ou recomendação"
+                                        />
+                                      )}
+                                    </p>
                                     {status && (
                                       <p className={`text-sm ${
                                         isLocalizado ? 'text-green-600' :
