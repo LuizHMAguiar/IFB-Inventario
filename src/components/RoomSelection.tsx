@@ -1,15 +1,17 @@
 import { useState, useMemo } from "react";
 import { type Database, type InventoryItem } from "../types";
+import { updateItem } from "../utils/storage";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { ArrowLeft, DoorOpen, Eye, Search } from "lucide-react";
+import { ArrowLeft, Check, DoorOpen, Eye, Pencil, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { ScrollArea } from "./ui/scroll-area";
+import { toast } from "sonner";
 
 interface RoomSelectionProps {
   database: Database;
-  onSelectRoom: (room: string) => void;
+  onSelectRoom: (room: string, itemNumero?: string) => void;
   onBack: () => void;
 }
 
@@ -17,6 +19,21 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
   const [selectedRoomForPreview, setSelectedRoomForPreview] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [roomSearchTerm, setRoomSearchTerm] = useState("");
+  const [markedItems, setMarkedItems] = useState<Set<string>>(() => new Set());
+
+  const markItemAsLocated = async (item: InventoryItem) => {
+    try {
+      await updateItem(database.id, item.NUMERO, {
+        STATUS: "Localizado",
+        ETIQUETADO: "Sim",
+        "ESTADO DE CONSERVAÇÃO": item["ESTADO DE CONSERVAÇÃO"] || "Bom",
+      });
+      setMarkedItems((current) => new Set(current).add(item.NUMERO));
+      toast.success(`Item ${item.NUMERO} marcado como localizado`);
+    } catch (error) {
+      toast.error(`Erro ao atualizar item: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+    }
+  };
 
   const rooms = useMemo(() => {
     const uniqueRooms = new Set(database.items.map(item => item.SALA));
@@ -29,7 +46,7 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
 
   const previewItems = useMemo(() => {
     if (!selectedRoomForPreview) return [];
-    const items = getRoomItems(selectedRoomForPreview);
+    const items = database.items.filter(item => item.SALA === selectedRoomForPreview);
     if (!searchTerm.trim()) return items;
 
     return items.filter(item => 
@@ -72,7 +89,7 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
             const roomItems = getRoomItems(room);
             const itemCount = roomItems.length;
             const verifiedCount = roomItems.filter(
-              item => item.STATUS === "Localizado" || item.STATUS === "Migrado"
+              item => item.STATUS === "Localizado" || item.STATUS === "Migrado" || markedItems.has(item.NUMERO)
             ).length;
             
             return (
@@ -124,7 +141,7 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
                         <div className="space-y-2">
                           {previewItems.map((item) => {
                             const status = item.STATUS;
-                            const isLocalizado = status === "Localizado";
+                            const isLocalizado = status === "Localizado" || markedItems.has(item.NUMERO);
                             const isMigrado = status === "Migrado";
                             
                             return (
@@ -136,7 +153,7 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
                                   'bg-white'
                                 }`}
                               >
-                                <div className="flex gap-3">
+                                <div className="flex items-start gap-3">
                                   <div className={`px-3 py-1 rounded ${
                                     isLocalizado ? 'bg-green-100 text-green-700' :
                                     isMigrado ? 'bg-yellow-100 text-yellow-700' :
@@ -144,7 +161,7 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
                                   }`}>
                                     {item.NUMERO}
                                   </div>
-                                  <div className="flex-1">
+                                  <div className="min-w-0 flex-1">
                                     <p>{item.DESCRIÇÃO}</p>
                                     {item.STATUS && (
                                       <p className={`text-sm ${
@@ -155,6 +172,30 @@ export function RoomSelection({ database, onSelectRoom, onBack }: RoomSelectionP
                                         Status: {item.STATUS}
                                       </p>
                                     )}
+                                  </div>
+                                  <div className="flex shrink-0 gap-1">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      aria-label={`Marcar item ${item.NUMERO} como localizado`}
+                                      title="Marcar como localizado"
+                                      disabled={isLocalizado}
+                                      onClick={() => void markItemAsLocated(item)}
+                                      className="text-green-700 hover:bg-green-100 hover:text-green-800"
+                                    >
+                                      <Check className="size-4" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      aria-label={`Editar item ${item.NUMERO}`}
+                                      title="Editar item"
+                                      onClick={() => onSelectRoom(room, item.NUMERO)}
+                                    >
+                                      <Pencil className="size-4" />
+                                    </Button>
                                   </div>
                                 </div>
                               </div>

@@ -16,11 +16,12 @@ import NotifError from '/error.mp3';
 interface ItemFormProps {
   database: Database;
   selectedRoom: string;
+  initialItemNumero?: string;
   onBack: () => void;
 }
 
-export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
-  const [searchNumber, setSearchNumber] = useState("");
+export function ItemForm({ database, selectedRoom, initialItemNumero, onBack }: ItemFormProps) {
+  const [searchNumber, setSearchNumber] = useState(initialItemNumero || "");
   const [currentItem, setCurrentItem] = useState<InventoryItem | null>(null);
   const [formData, setFormData] = useState<Partial<InventoryItem>>({});
   const [databaseData, setDatabaseData] = useState(database);
@@ -29,13 +30,24 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
     let active = true;
     void getDatabase(database.id)
       .then((freshData) => {
-        if (active && freshData) setDatabaseData(freshData);
+        if (!active || !freshData) return;
+        setDatabaseData(freshData);
+        if (initialItemNumero) {
+          const item = freshData.items.find((entry) => entry.NUMERO === initialItemNumero);
+          if (item) {
+            setCurrentItem(item);
+            setFormData(item);
+            setSearchNumber(item.NUMERO);
+          } else {
+            toast.error(`Item ${initialItemNumero} não encontrado na base de dados`);
+          }
+        }
       })
       .catch((error: unknown) => {
         if (active) toast.error(`Erro ao carregar base: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
       });
     return () => { active = false; };
-  }, [database.id]);
+  }, [database.id, initialItemNumero]);
 
   const searchItem = async (numero: string) => {
     if (!numero.trim()) {
