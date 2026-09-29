@@ -21,13 +21,17 @@ export function DatabaseManagement({ onSelectDatabase }: DatabaseManagementProps
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<CSVParseResult | null>(null);
 
-  useEffect(() => {
-    loadDatabases();
-  }, []);
-
-  const loadDatabases = () => {
-    setDatabases(getAllDatabases());
+  const loadDatabases = async () => {
+    setDatabases(await getAllDatabases());
   };
+
+  useEffect(() => {
+    void getAllDatabases()
+      .then(setDatabases)
+      .catch((error: unknown) => {
+        toast.error(`Erro ao carregar bases: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+      });
+  }, []);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -60,7 +64,7 @@ export function DatabaseManagement({ onSelectDatabase }: DatabaseManagementProps
     event.target.value = '';
   };
 
-  const confirmImport = (parseResult: CSVParseResult) => {
+  const confirmImport = async (parseResult: CSVParseResult) => {
     const newDatabase: Database = {
       id: Date.now().toString(),
       name: newDatabaseName,
@@ -68,12 +72,16 @@ export function DatabaseManagement({ onSelectDatabase }: DatabaseManagementProps
       createdAt: new Date().toISOString()
     };
 
-    saveDatabase(newDatabase);
-    loadDatabases();
-    setNewDatabaseName("");
-    setIsImportDialogOpen(false);
-    setPendingImport(null);
-    toast.success(`Base de dados "${newDatabaseName}" importada com sucesso! ${parseResult.items.length} itens carregados.`);
+    try {
+      await saveDatabase(newDatabase);
+      await loadDatabases();
+      setNewDatabaseName("");
+      setIsImportDialogOpen(false);
+      setPendingImport(null);
+      toast.success(`Base de dados "${newDatabase.name}" importada com sucesso! ${parseResult.items.length} itens carregados.`);
+    } catch (error) {
+      toast.error(`Erro ao salvar base: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+    }
   };
 
   const cancelImport = () => {
@@ -82,11 +90,15 @@ export function DatabaseManagement({ onSelectDatabase }: DatabaseManagementProps
     toast.info("Importação cancelada. Por favor, corrija o arquivo CSV e tente novamente.");
   };
 
-  const handleDeleteDatabase = (id: string, name: string) => {
+  const handleDeleteDatabase = async (id: string, name: string) => {
     if (confirm(`Tem certeza que deseja excluir a base de dados "${name}"?`)) {
-      deleteDatabase(id);
-      loadDatabases();
-      toast.success("Base de dados excluída com sucesso");
+      try {
+        await deleteDatabase(id);
+        await loadDatabases();
+        toast.success("Base de dados excluída com sucesso");
+      } catch (error) {
+        toast.error(`Erro ao excluir base: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+      }
     }
   };
 
@@ -176,7 +188,7 @@ export function DatabaseManagement({ onSelectDatabase }: DatabaseManagementProps
                   <Button
                     variant="destructive"
                     className="flex-1 gap-2"
-                    onClick={() => handleDeleteDatabase(database.id, database.name)}
+                    onClick={() => void handleDeleteDatabase(database.id, database.name)}
                   >
                     <Trash2 className="size-4" />
                     Excluir

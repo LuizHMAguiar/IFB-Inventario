@@ -26,14 +26,18 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
   const [databaseData, setDatabaseData] = useState(database);
 
   useEffect(() => {
-    // Reload database data when component mounts or updates
-    const freshData = getDatabase(database.id);
-    if (freshData) {
-      setDatabaseData(freshData);
-    }
+    let active = true;
+    void getDatabase(database.id)
+      .then((freshData) => {
+        if (active && freshData) setDatabaseData(freshData);
+      })
+      .catch((error: unknown) => {
+        if (active) toast.error(`Erro ao carregar base: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+      });
+    return () => { active = false; };
   }, [database.id]);
 
-  const searchItem = (numero: string) => {
+  const searchItem = async (numero: string) => {
     if (!numero.trim()) {
       toast.error("Digite um número de item");
       const audio = new Audio(NotifError);
@@ -77,17 +81,17 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
     setFormData(updatedFormData);
     
     // Update database immediately
-    updateItem(database.id, numero.trim(), {
-      STATUS: newStatus,
-      ETIQUETADO: "Sim",
-      "ESTADO DE CONSERVAÇÃO": item["ESTADO DE CONSERVAÇÃO"]? item["ESTADO DE CONSERVAÇÃO"] : "Bom",
-      OBSERVAÇÃO: newObservacao
-    });
-
-    // Reload database to get fresh data
-    const freshData = getDatabase(database.id);
-    if (freshData) {
-      setDatabaseData(freshData);
+    try {
+      await updateItem(database.id, numero.trim(), {
+        STATUS: newStatus,
+        ETIQUETADO: "Sim",
+        "ESTADO DE CONSERVAÇÃO": item["ESTADO DE CONSERVAÇÃO"] ? item["ESTADO DE CONSERVAÇÃO"] : "Bom",
+        OBSERVAÇÃO: newObservacao,
+      });
+      const freshData = await getDatabase(database.id);
+      if (freshData) setDatabaseData(freshData);
+    } catch (error) {
+      toast.error(`Erro ao atualizar item: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
 
     if (isInCorrectRoom) {
@@ -99,7 +103,7 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
     }
   };
 
-  const handleFieldChange = (field: keyof InventoryItem, value: string) => {
+  const handleFieldChange = async (field: keyof InventoryItem, value: string) => {
     if (!currentItem) return;
 
     const updatedFormData = {
@@ -110,12 +114,12 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
     setFormData(updatedFormData);
     
     // Update database immediately
-    updateItem(database.id, currentItem.NUMERO, { [field]: value });
-
-    // Reload database
-    const freshData = getDatabase(database.id);
-    if (freshData) {
-      setDatabaseData(freshData);
+    try {
+      await updateItem(database.id, currentItem.NUMERO, { [field]: value });
+      const freshData = await getDatabase(database.id);
+      if (freshData) setDatabaseData(freshData);
+    } catch (error) {
+      toast.error(`Erro ao salvar alteração: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
   };
 
@@ -125,12 +129,12 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
     // If numero detected, search for the item
     if (command.numero) {
       setSearchNumber(command.numero);
-      searchItem(command.numero);
+      void searchItem(command.numero);
     }
 
     // If estado detected, update the field
     if (command.estado && currentItem) {
-      handleFieldChange("ESTADO DE CONSERVAÇÃO", command.estado);
+      void handleFieldChange("ESTADO DE CONSERVAÇÃO", command.estado);
       toast.success(`Estado atualizado: ${command.estado}`);
     }
 
@@ -142,20 +146,20 @@ export function ItemForm({ database, selectedRoom, onBack }: ItemFormProps) {
         ? `${formData.OBSERVAÇÃO}. ${command.observacao}`
         : command.observacao;
       
-      handleFieldChange("OBSERVAÇÃO", observacao);
+      void handleFieldChange("OBSERVAÇÃO", observacao);
       toast.success(`Observação atualizada`);
     }
 
     // If recomendacao detected, update the field
     if (command.recomendacao && currentItem) {
-      handleFieldChange("RECOMENDAÇÃO", command.recomendacao);
+      void handleFieldChange("RECOMENDAÇÃO", command.recomendacao);
       toast.success(`Recomendação atualizada`);
     }
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    searchItem(searchNumber);
+    void searchItem(searchNumber);
   };
 
   return (

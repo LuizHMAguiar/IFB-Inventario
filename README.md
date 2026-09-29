@@ -43,38 +43,20 @@ export default defineConfig([
 ])
 ```
 
-## Salvar bases em arquivos .sqlite
+## Banco de dados local SQLite
 
-Ao importar uma planilha a aplicação tentará oferecer um download do arquivo `.sqlite` (nome sugerido `data/<nome>.sqlite`).
+A aplicação persiste as bases e alterações em `data/ifb-inventario.sqlite`. O arquivo e as tabelas são criados automaticamente na primeira execução; não é necessário instalar ou iniciar um serviço de banco de dados.
 
-Para salvar todas as bases persistidas (localStorage) no disco do projeto, gere um arquivo `manifest.json` com o conteúdo do storage `ifb_saved_bases` e execute o script Node:
-
-```powershell
-node scripts/save_bases_to_disk.js path/to/manifest.json
-# os arquivos .sqlite serão escritos em ./data/
-```
-
-Observação: navegadores não permitem gravar diretamente em pastas do projeto; o download gera um arquivo que o usuário deve salvar manualmente. O script Node é uma alternativa para gravar no repositório local a partir de um manifest JSON.
-
-### Servidor local para salvar .db automaticamente
-
-Você pode executar um pequeno servidor Node que aceita POSTs para gravar o arquivo `.db` diretamente em `./data/`.
-
-1. Instale dependências (se necessário):
+Instale as dependências e inicie a interface e a API juntas:
 
 ```powershell
-npm install express
+npm install
+npm run dev
 ```
 
-2. Inicie o servidor:
+Execute `npm run dev`. A API cria o arquivo SQLite e as tabelas automaticamente, e o Vite encaminha as chamadas para `http://127.0.0.1:3001`. Abra o endereço local exibido pelo Vite (normalmente `http://localhost:5173`). Para mudar o caminho do arquivo, defina `DB_FILE` no `.env` local.
 
-```powershell
-node server/save-db-server.js
-```
-
-3. Ao importar uma planilha pela UI, a aplicação tentará enviar o banco gerado para `http://localhost:3001/save-db` e o servidor gravará `./data/<nome>.db` automaticamente.
-
-Se o servidor não estiver rodando, a aplicação fará o download do arquivo no navegador como fallback.
+Na primeira abertura, bases ainda existentes no `localStorage` (`inventory_databases`) são copiadas para o SQLite e removidas do armazenamento do navegador após a confirmação das gravações.
 
 You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
