@@ -1,7 +1,10 @@
 import { createServer } from "node:http";
+import { existsSync } from "node:fs";
 import pg from "pg";
 
-if (typeof process.loadEnvFile === "function") process.loadEnvFile(".env");
+if (typeof process.loadEnvFile === "function" && existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
 
 const { Pool } = pg;
 const requiredEnvironment = [
