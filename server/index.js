@@ -1,69 +1,63 @@
 import { createServer } from "node:http";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import initSqlJs from "sql.js";
+import pg from "pg";
 
-if (existsSync(".env")) process.loadEnvFile(".env");
+if (typeof process.loadEnvFile === "function") process.loadEnvFile(".env");
 
-const databaseFile = resolve(process.env.DB_FILE || "data/ifb-inventario.sqlite");
-mkdirSync(dirname(databaseFile), { recursive: true });
+const { Pool } = pg;
+const requiredEnvironment = [
+  "VITE_SUPABASE_DB_HOST",
+  "VITE_SUPABASE_DB_NAME",
+  "VITE_SUPABASE_DB_USER",
+  "VITE_SUPABASE_DB_PASSWORD",
+];
+const missingEnvironment = requiredEnvironment.filter((name) => !process.env[name]);
+if (missingEnvironment.length > 0) {
+  throw new Error(`Variáveis do Supabase ausentes: ${missingEnvironment.join(", ")}`);
+}
 
-const SQL = await initSqlJs();
-const database = new SQL.Database(
-  existsSync(databaseFile) ? new Uint8Array(readFileSync(databaseFile)) : undefined,
-);
-database.run("PRAGMA foreign_keys = ON");
-database.run(`
+const pool = new Pool({
+  ...(process.env.VITE_SUPABASE_DB_URL
+    ? { connectionString: process.env.VITE_SUPABASE_DB_URL }
+    : {
+        host: process.env.VITE_SUPABASE_DB_HOST,
+        port: Number(process.env.VITE_SUPABASE_DB_PORT || 5432),
+        database: process.env.VITE_SUPABASE_DB_NAME,
+        user: process.env.VITE_SUPABASE_DB_USER,
+        password: process.env.VITE_SUPABASE_DB_PASSWORD,
+      }),
+  ssl: process.env.VITE_SUPABASE_DB_SSL !== "false" ? { rejectUnauthorized: false } : false,
+  max: Number(process.env.VITE_SUPABASE_DB_POOL_SIZE || 10),
+});
+
+await pool.query(`
   CREATE TABLE IF NOT EXISTS inventory_databases (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TIMESTAMPTZ NOT NULL
   )
 `);
-database.run(`
+await pool.query(`
   CREATE TABLE IF NOT EXISTS inventory_items (
     database_id TEXT NOT NULL,
     item_numero TEXT NOT NULL,
-    item_data TEXT NOT NULL,
+    item_data JSONB NOT NULL,
     PRIMARY KEY (database_id, item_numero),
     FOREIGN KEY (database_id) REFERENCES inventory_databases(id) ON DELETE CASCADE
   )
 `);
 
-function persistDatabase() {
-  const temporaryFile = `${databaseFile}.tmp`;
-  writeFileSync(temporaryFile, Buffer.from(database.export()));
-  renameSync(temporaryFile, databaseFile);
-}
-
-function queryRows(sql, parameters = []) {
-  const statement = database.prepare(sql);
-  try {
-    statement.bind(parameters);
-    const rows = [];
-    while (statement.step()) rows.push(statement.getAsObject());
-    return rows;
-  } finally {
-    statement.free();
-  }
-}
-
-function queryOne(sql, parameters = []) {
-  return queryRows(sql, parameters)[0] || null;
-}
-
-function loadDatabase(id) {
-  const savedDatabase = queryOne(
-    "SELECT id, name, created_at AS createdAt FROM inventory_databases WHERE id = ?",
+async function loadDatabase(id, client = pool) {
+  const savedDatabase = await client.query(
+    "SELECT id, name, created_at AS \"createdAt\" FROM inventory_databases WHERE id = $1",
     [id],
   );
-  if (!savedDatabase) return null;
+  if (savedDatabase.rowCount === 0) return null;
 
-  const items = queryRows(
-    "SELECT item_data AS itemData FROM inventory_items WHERE database_id = ? ORDER BY rowid",
+  const items = await client.query(
+    "SELECT item_data AS \"itemData\" FROM inventory_items WHERE database_id = $1 ORDER BY item_numero",
     [id],
-  ).map(({ itemData }) => JSON.parse(itemData));
-  return { ...savedDatabase, items };
+  );
+  return { ...savedDatabase.rows[0], items: items.rows.map(({ itemData }) => itemData) };
 }
 
 async function readBody(request) {
@@ -92,13 +86,15 @@ async function handleRequest(request, response) {
   const path = new URL(request.url, "http://localhost").pathname;
 
   if (request.method === "GET" && path === "/api/health") {
-    respond(response, 200, { status: "ok", databaseFile });
+    await pool.query("SELECT 1");
+    respond(response, 200, { status: "ok", database: process.env.VITE_SUPABASE_DB_NAME });
     return;
   }
 
   if (request.method === "GET" && path === "/api/databases") {
-    const rows = queryRows("SELECT id FROM inventory_databases ORDER BY created_at DESC");
-    respond(response, 200, rows.map(({ id }) => loadDatabase(id)).filter(Boolean));
+    const result = await pool.query("SELECT id FROM inventory_databases ORDER BY created_at DESC");
+    const databases = await Promise.all(result.rows.map(({ id }) => loadDatabase(id)));
+    respond(response, 200, databases.filter(Boolean));
     return;
   }
 
@@ -112,21 +108,20 @@ async function handleRequest(request, response) {
       return;
     }
 
-    const row = queryOne(
-      "SELECT item_data AS itemData FROM inventory_items WHERE database_id = ? AND item_numero = ?",
+    const result = await pool.query(
+      "SELECT item_data AS \"itemData\" FROM inventory_items WHERE database_id = $1 AND item_numero = $2",
       [databaseId, itemNumero],
     );
-    if (!row) {
+    if (result.rowCount === 0) {
       respond(response, 404, { error: "Item não encontrado" });
       return;
     }
 
-    const item = { ...JSON.parse(row.itemData), ...updates };
-    database.run(
-      "UPDATE inventory_items SET item_data = ? WHERE database_id = ? AND item_numero = ?",
+    const item = { ...result.rows[0].itemData, ...updates };
+    await pool.query(
+      "UPDATE inventory_items SET item_data = $1::jsonb WHERE database_id = $2 AND item_numero = $3",
       [JSON.stringify(item), databaseId, itemNumero],
     );
-    persistDatabase();
     respond(response, 204);
     return;
   }
@@ -139,7 +134,7 @@ async function handleRequest(request, response) {
   const id = decodeURIComponent(databaseMatch[1]);
 
   if (request.method === "GET") {
-    respond(response, 200, loadDatabase(id));
+    respond(response, 200, await loadDatabase(id));
     return;
   }
 
@@ -153,36 +148,37 @@ async function handleRequest(request, response) {
       return;
     }
 
-    database.run("BEGIN TRANSACTION");
+    const client = await pool.connect();
     try {
-      database.run(
-        `INSERT INTO inventory_databases (id, name, created_at) VALUES (?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET name = excluded.name, created_at = excluded.created_at`,
+      await client.query("BEGIN");
+      await client.query(
+        `INSERT INTO inventory_databases (id, name, created_at) VALUES ($1, $2, $3)
+         ON CONFLICT(id) DO UPDATE SET name = EXCLUDED.name, created_at = EXCLUDED.created_at`,
         [id, savedDatabase.name, savedDatabase.createdAt],
       );
-      database.run("DELETE FROM inventory_items WHERE database_id = ?", [id]);
+      await client.query("DELETE FROM inventory_items WHERE database_id = $1", [id]);
       for (const item of savedDatabase.items) {
         if (!item || typeof item.NUMERO !== "string") {
           throw Object.assign(new Error("Cada item precisa ter um NUMERO em texto"), { status: 400 });
         }
-        database.run(
-          "INSERT INTO inventory_items (database_id, item_numero, item_data) VALUES (?, ?, ?)",
+        await client.query(
+          "INSERT INTO inventory_items (database_id, item_numero, item_data) VALUES ($1, $2, $3::jsonb)",
           [id, item.NUMERO, JSON.stringify(item)],
         );
       }
-      database.run("COMMIT");
-      persistDatabase();
+      await client.query("COMMIT");
     } catch (error) {
-      database.run("ROLLBACK");
+      await client.query("ROLLBACK");
       throw error;
+    } finally {
+      client.release();
     }
     respond(response, 204);
     return;
   }
 
   if (request.method === "DELETE") {
-    database.run("DELETE FROM inventory_databases WHERE id = ?", [id]);
-    persistDatabase();
+    await pool.query("DELETE FROM inventory_databases WHERE id = $1", [id]);
     respond(response, 204);
     return;
   }
@@ -202,8 +198,7 @@ const server = createServer((request, response) => {
   });
 });
 
-const port = Number(process.env.API_PORT || 3001);
-persistDatabase();
+const port = Number(process.env.VITE_API_PORT || 3001);
 const listenResult = await new Promise((resolve) => {
   server.once("error", (error) => resolve({ error }));
   server.listen(port, "127.0.0.1", () => resolve({ started: true }));
@@ -220,25 +215,22 @@ if (listenResult.error) {
     existingApi = null;
   }
 
-  if (existingApi?.status !== "ok" || resolve(existingApi.databaseFile) !== databaseFile) {
+  if (existingApi?.status !== "ok" || existingApi.database !== process.env.VITE_SUPABASE_DB_NAME) {
     console.error(`[api] A porta ${port} já está em uso por outro serviço.`);
     process.exit(1);
   }
 
-  console.log(`[api] Reutilizando a API ativa na porta ${port} e o banco ${databaseFile}`);
+  console.log(`[api] Reutilizando a API ativa na porta ${port}`);
   await new Promise((resolveExit) => {
     const keepAlive = setInterval(() => {}, 60_000);
-    const stop = () => resolveExit();
     const shutdown = () => {
       clearInterval(keepAlive);
-      process.off("SIGINT", shutdown);
-      process.off("SIGTERM", shutdown);
-      stop();
+      server.close();
+      void pool.end().finally(resolveExit);
     };
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);
   });
 } else {
-  console.log(`API SQLite disponível em http://127.0.0.1:${port}`);
-  console.log(`Arquivo de banco local: ${databaseFile}`);
+  console.log(`API Supabase disponível em http://127.0.0.1:${port}`);
 }

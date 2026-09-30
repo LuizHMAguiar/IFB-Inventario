@@ -43,9 +43,24 @@ export default defineConfig([
 ])
 ```
 
-## Banco de dados local SQLite
+## Banco de dados Supabase
 
-A aplicação persiste as bases e alterações em `data/ifb-inventario.sqlite`. O arquivo e as tabelas são criados automaticamente na primeira execução; não é necessário instalar ou iniciar um serviço de banco de dados.
+A aplicação persiste as bases e alterações no PostgreSQL do Supabase. As tabelas `inventory_databases` e `inventory_items` são criadas automaticamente pela API na primeira execução.
+
+Configure o `.env` com os dados do banco no Supabase (Project Settings > Database > Connection parameters). A senha não deve ser publicada nem adicionada ao controle de versão:
+
+```env
+VITE_SUPABASE_DB_HOST=db.<project-ref>.supabase.co
+VITE_SUPABASE_DB_PORT=5432
+VITE_SUPABASE_DB_NAME=postgres
+VITE_SUPABASE_DB_USER=postgres
+VITE_SUPABASE_DB_PASSWORD=sua-senha-do-banco
+VITE_SUPABASE_DB_SSL=true
+VITE_SUPABASE_DB_URL=
+VITE_API_PORT=3001
+```
+
+Se o host `db.<project-ref>.supabase.co` não resolver na sua rede, copie no campo `VITE_SUPABASE_DB_URL` a conexão `Session pooler` ou `Transaction pooler` exibida em Project Settings > Database > Connect. Nesse caso, mantenha a URL entre aspas e substitua `[YOUR-PASSWORD]` pela senha real.
 
 Instale as dependências e inicie a interface e a API juntas:
 
@@ -54,9 +69,9 @@ npm install
 npm run dev
 ```
 
-Execute `npm run dev`. A API cria o arquivo SQLite e as tabelas automaticamente, e o Vite encaminha as chamadas para `http://127.0.0.1:3001`. Abra o endereço local exibido pelo Vite (normalmente `http://localhost:5173`). Para mudar o caminho do arquivo, defina `DB_FILE` no `.env` local.
+Execute `npm run dev`. A API conecta ao Supabase e o Vite encaminha as chamadas para `http://127.0.0.1:3001`. Abra o endereço local exibido pelo Vite (normalmente `http://localhost:5173`).
 
-Na primeira abertura, bases ainda existentes no `localStorage` (`inventory_databases`) são copiadas para o SQLite e removidas do armazenamento do navegador após a confirmação das gravações.
+Na primeira abertura, bases ainda existentes no `localStorage` (`inventory_databases`) são copiadas para o Supabase e removidas do armazenamento do navegador após a confirmação das gravações. O arquivo SQLite local antigo não é migrado automaticamente.
 
 You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
