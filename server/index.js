@@ -181,7 +181,18 @@ async function handleRequest(request, response) {
   }
 
   if (request.method === "DELETE") {
-    await pool.query("DELETE FROM inventory_databases WHERE id = $1", [id]);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("DELETE FROM inventory_items WHERE database_id = $1", [id]);
+      await client.query("DELETE FROM inventory_databases WHERE id = $1", [id]);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
     respond(response, 204);
     return;
   }
